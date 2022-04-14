@@ -1,11 +1,11 @@
-name: "My JSC Project"
+name: "Leagues of Data"
 output_dir: "docs"
 navbar:
   title: "JSC370 Final Project"
   left:
     - text: "Home"
       href: index.html
-    - text: "Second Page!"
+    - text: "Interactive Visualization"
       href: page2.html
   right:
     - icon: fa-github fa-lg

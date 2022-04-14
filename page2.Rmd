@@ -1,26 +1,226 @@
 ---
-title: "Data Set Preview"
+title: "DataSet Preview"
 author: "Mark JP Sanchez"
-date: "05/04/2022"
 output: 
   html_document:
     toc: True
     toc_float: True
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+<br>
 
-# Interactive Visuals
+This is my JSC370 Final Project website. I will showcase a few interactive visuals here.
 
-```{r}
+<br>
+
+```{r setup, message=FALSE, echo=FALSE, warning=FALSE}
+
+library(data.table)
+library(tidyverse)
 library(dplyr)
+library(plotly)
+library(DT)
+library(knitr)
 
-source("process_COVID_data.R")
+# Initialize code chunk options
+opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  eval=TRUE,
+  echo = FALSE,
+  cache = FALSE,
+  include = FALSE,
+  fig.width = 7, 
+  fig.align = 'center',
+  fig.asp = 0.618,
+  out.width = "700px",
+  class.source = "code-r")
 ```
 
-```{r}
-head(cv_states)
+```{css, echo = FALSE}
+.code-r { /* Code block */
+  font-size: 15px;
+}
+
+.code-r-small { /* Code block */
+  font-size: 10px;
+}
 ```
 
+
+```{r load-data}
+# Loading in our data
+player_df <- read.csv("data/lol_player_info.csv")
+match_df <- read.csv("data/lol_match_info.csv")
+
+# Getting rid of games that are too old
+match_df <- match_df %>%
+  filter(gameCreation > 1641621600000)
+
+match_df$gameDate <- as.Date(as.POSIXct(match_df$gameCreation / 1000, origin="1970-01-01"))
+match_df$gameDuration <- match_df$gameDuration / 60
+
+player_df <- player_df %>%
+  mutate(
+    teamPosition = ifelse(teamPosition == "", NA, teamPosition)) %>%
+  drop_na(teamPosition)
+
+player_df <- match_df %>%
+  select(match_id) %>%
+  merge(player_df, by ="match_id", all.x = T)
+```
+
+# Interactive Visualization
+
+To get a better sense of the data here are some interactive visuals of the dataset
+
+## Champion Info
+
+One of the most notable and recognizable things about League of Legends is there character, also known as Champions. Here we have some graphs that give us some insight on some basic stats on each Champion.
+
+```{r plot1, fig.height=10, include = T}
+
+player_df %>%
+  group_by(championName) %>%
+  summarise(play_rate = n()/nrow(match_df) * 100) %>%
+  plot_ly(x = ~championName,
+          y = ~play_rate,
+          type = "bar",
+          color = ~championName,
+          hover_info = "text",
+          text = ~paste(paste0("Champion Name: ", championName),
+                        paste0("Play Rate: ", paste0(round(play_rate,2), "%")),
+                        sep = "<br>"
+                        )) %>%
+  layout(title = "Play Rate of Each Champion (%)",
+         yaxis = list(title = "Play Rate (%)"),
+         xaxis = list(title = "Champion"))
+```
+
+```{r plot2, fig.height=10, include = T}
+
+player_df %>%
+  group_by(championName) %>%
+  summarise(win_rate = sum(win)/n() * 100, n = n()) %>%
+  plot_ly(x = ~championName,
+          y = ~win_rate,
+          type = "bar",
+          color = ~championName,
+          hover_info = "text",
+          text = ~paste(paste0("Champion Name: ", championName),
+                        paste0("Win Rate: ", paste0(round(win_rate,2), "%")),
+                        paste0("Out of ", paste0(n, " games")),
+                        sep = "<br>"
+                        )) %>%
+  layout(title = "Win Rate of Each Champion (%)",
+         yaxis = list(title = "Win Rate (%)"),
+         xaxis = list(title = "Champion"))
+```
+
+## Role Info
+
+There are 5 distinct roles each player plays in a game. The 5 positions are Bottom, Jungle, Middle, Top and Utility. Here we will show some graphs to give a general idea on what each position does.
+
+```{r plot3, fig.height=10, include = T}
+avged_stats <- player_df %>%
+  merge(match_df, by = "match_id") %>%
+  mutate(kills = kills/ gameDuration,
+         totalDamageDealt = totalDamageDealt / gameDuration,
+         totalHeal = totalHeal / gameDuration,
+         wardsPlaced = wardsPlaced / gameDuration,
+         totalTimeCCDealt = totalTimeCCDealt / gameDuration,
+         totalDamageTaken = totalDamageTaken / gameDuration,
+         goldEarned = goldEarned / gameDuration,
+         win = ifelse(win, "Won", "Lossed"))
+
+avged_stats %>%
+  drop_na(teamPosition) %>%
+  plot_ly(
+    y = ~totalDamageDealt,
+    color = ~teamPosition,
+    type = "box"
+  ) %>%
+  layout(title = "Damage Dealt Per Minute By Role",
+         yaxis = list(title = "Damage Dealt Per Minute"),
+         xaxis = list(title = "Role"))
+```
+
+```{r plot4, fig.height=10, include = T}
+avged_stats %>%
+  drop_na(teamPosition) %>%
+  plot_ly(
+    y = ~totalDamageTaken,
+    color = ~teamPosition,
+    type = "box"
+  ) %>%
+  layout(title = "Damage Taken Per Minute By Role",
+         yaxis = list(title = "Damage Taken Per Minute"),
+         xaxis = list(title = "Role"))
+```
+
+```{r plot5, fig.height=10, include = T}
+avged_stats %>%
+  drop_na(teamPosition) %>%
+  plot_ly(
+    y = ~goldEarned,
+    color = ~teamPosition,
+    type = "box"
+  ) %>%
+  layout(title = "Gold Earned Per Minute By Role",
+         yaxis = list(title = "Gold Earned Per Minute"),
+         xaxis = list(title = "Role"))
+```
+
+## Match and Player Stats Info
+
+Here are some graphs and info on matches and different player stats
+
+```{r plot6, fig.height=10, include = T}
+match_df %>%
+  plot_ly(
+    x = ~gameDuration,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Game Lengths",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Game Length in Minutes"))
+```
+
+```{r plot7, fig.height=10, include = T}
+diff_stats <- match_df %>%
+  left_join(avged_stats, by = "match_id") %>%
+  group_by(match_id, teamId, win) %>%
+  summarise(
+    damageDealt = sum(totalDamageDealt),
+    goldEarned = sum(goldEarned)
+    ) %>%
+  pivot_wider(names_from = teamId, values_from = c("damageDealt", "goldEarned", "win")) %>%
+  mutate(
+    damageDealtDiff = damageDealt_100 - damageDealt_200,
+    goldEarnedDiff = goldEarned_100 - goldEarned_200
+    )
+
+diff_stats %>%
+  plot_ly(
+    x = ~damageDealtDiff,
+    color = ~win_100,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Differences in Damage Dealt Per Minute by Win/Loss",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Damage Dealt Difference Per Minute"),
+         barmode = "stack")
+```
+
+```{r plot8, fig.height=10, include = T}
+diff_stats %>%
+  plot_ly(
+    x = ~goldEarnedDiff,
+    color = ~win_100,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Differences in Gold Earned Per Minute by Win/Loss",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Gold Earned Difference Per Minute"),
+         barmode = "stack")
+```
