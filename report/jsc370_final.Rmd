@@ -350,6 +350,7 @@ champion_matrix_df <- champion_matrix_df %>%
 ```
 ```{r}
 cor(predictions, champion_test_df$goldEarned)^2
+write.csv(champion_matrix_df, "../data/champion_matrix.csv")
 ```
 
 After fitting our model and applying validation, we are left with a matrix factorization model that has an r-squared value of 0.88 on our test set. So our model explains 88% of the variation in our test set which is pretty good. Now that we have generated our latent factors, lets plot them.
@@ -378,7 +379,7 @@ champion_matrix_df %>%
   geom_point() +
   facet_wrap(~teamPosition) +
   theme(legend.position = "none") +
-  labs(title = "Latent Factors of each champion by most played position") +
+  labs(title = "Latent Factors of each champion by Position") +
   xlab("Latent Factor 1") + 
   ylab("Latent Factor 2") 
 ```

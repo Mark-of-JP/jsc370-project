@@ -37,7 +37,7 @@ League of Legends is a hugely popular video game that rakes in billions of dolla
 
 Evidently. one thing that makes the game so much fun is all the moving parts and decisions a player can make to influence a match. Some decisions include what champion to choose, what items to buy, and what objective to focus on. Unfortunately, all of these factors and decisions can overwhelm new and existing players, and with the main objective obviously being to win the game, it would be nice to now what kind of decisions actually influence those wins.
 
-A link to the full report can be found [here](report/jsc370_report.pdf)
+A link to the full report can be found [here](report/jsc370_final.pdf)
 
 # Methods
 
@@ -81,7 +81,7 @@ avged_stats <- player_df %>%
          totalTimeCCDealt = totalTimeCCDealt / gameDuration,
          totalDamageTaken = totalDamageTaken / gameDuration,
          goldEarned = goldEarned / gameDuration,
-         win = ifelse(win, "Won", "Lossed"))
+         win_state = ifelse(win, "Won", "Lost"))
 ```
 
 # Interactive Visualization
@@ -111,6 +111,8 @@ player_df %>%
          xaxis = list(title = "Champion"))
 ```
 
+Here play rate is defined as the percentage of games in our data set that the champion was present in. Notice that since there are 10 champions per team, the play rate won't add up to 100%
+
 ```{r plot2, fig.height=10, include = T}
 
 player_df %>%
@@ -135,20 +137,10 @@ player_df %>%
 
 Here are some graphs and info on matches and different player stats
 
-```{r plot6, fig.height=10, include = T}
-match_df %>%
-  plot_ly(
-    x = ~gameDuration,
-    type = "histogram"
-  ) %>%
-  layout(title = "Histogram of Game Lengths",
-         yaxis = list(title = "Frequency"),
-         xaxis = list(title = "Game Length in Minutes"))
-```
-
 ```{r plot7, fig.height=10, include = T}
 diff_stats <- match_df %>%
   left_join(avged_stats, by = "match_id") %>%
+  mutate(win = win_state) %>%
   group_by(match_id, teamId, win) %>%
   summarise(
     damageDealt = sum(totalDamageDealt),
@@ -184,3 +176,40 @@ diff_stats %>%
          xaxis = list(title = "Gold Earned Difference Per Minute"),
          barmode = "stack")
 ```
+
+## Latent Factors
+
+Within our report we used some matrix factorization to learn some latent factors of each of the 158 champions. Our matrix was 158x158 where each row and column represented a champion. With our xgboost model we learned that gold earned is one of the biggest indicators of who is winning the match. So for our matrix, each cell represents the average amount of gold earned per minute in games where the column champion is on the opposing team. Here we can gather information on an important metric as well and capture any interactions between the champion and its opponents.
+
+Our model gave us an r squared value of 0.88 so our model explains 88% of the variance in our test set. Below is an example of the champions by their latent factors.
+
+```{r}
+champion_matrix_df <- read.csv("data/champion_matrix.csv")
+
+champion_matrix_df %>%
+  plot_ly(x = ~attacking_factor1,
+          y = ~attacking_factor2,
+          type = "scatter",
+          mode = "markers",
+          color = ~teamPosition,
+          hover_info = "text",
+          text = ~paste("Champion Name: ", champion
+                        )) %>%
+  layout(title = "Learned Latent Factors of Champions",
+         yaxis = list(title = "Latent Factor 2"),
+         xaxis = list(title = "Latent Factor 1"))
+```
+
+# Conclusion and Summary
+
+From fitting our model and looking at the data, we can gather a lot about the game of League of Legends. Our initial exploratory graphs gave us insight on the relationship of variables, our xgboost model showed us what skills are important and what aren't, and our matrix factorization gave us an understanding of how to make your choice on what champion to choose.
+
+There are many decisions to be made and many skills to polish which can be overwhelming for a new player. So to aid new and veteran players, here is our recommendation on how you can win a game in League of Legends,
+
+- You should polish your skills in earning as much gold as possible. This means killing and last-hitting minions, killing enemies and reducing any downtime you have. Use gold, and the difference of gold between you and your opponents, as a benchmark on who is currently doing better in the game
+- Focus on getting kills and staying alive. This seems pretty evident but there are some nuances. Focus on getting high killing sprees. This means that just because you can get a kill doesn't mean you should. How likely is death if you attempt to secure a kill? If you can guarantee a kill at the expense of your own life, you should reconsider your options. That doesn't mean never trade your lives for another player but if you already have a number of kills under your belt, be wary of dangerous situations.
+- Kills are more important than doing damage. While doing damage is useful, you are far more likely to win a game the more kills you have. So even if it feels like overkill, unless you leave yourself defenseless, do not be ashamed of unloading more than enough abilities on an enemy to ensure they die.
+- Do not feel too pressured to choose the "best" or most "meta" champion to play. All of the champions seem to be fairly balanced and more notably distinct from each other. Choose a role you want to play and a champion that fits that role. Since there is some distinction between each champion it is better to choose specific champion and learn to get good with them. While some skills are transferable between champions, each one of them has their own flavour.If you are new and attempt to learn whatever is currently the "best" current champion, then you might find that your progress will be slowed down due to you constantly switching between differing characters.
+- While being a team game, your personal achievements and actions within the game are very influential in the outcome. Even if you feel like your team is horrible, you are not guaranteed to lose. If you try your best, you might find that victory is possible.
+
+Our last recommendation is one that needs no machine learning model support it. The last recommendation being have fun! At the end of the day, League of Legends is a video game and the goal of a video game is enjoyment. While it is cool to win, it is impossible to win every game so just have fun as you improve your skills.

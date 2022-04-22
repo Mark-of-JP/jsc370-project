@@ -68,53 +68,61 @@ player_df <- player_df %>%
 player_df <- match_df %>%
   select(match_id) %>%
   merge(player_df, by ="match_id", all.x = T)
+
+avged_stats <- player_df %>%
+  merge(match_df, by = "match_id") %>%
+  mutate(kills = kills/ gameDuration,
+         totalDamageDealt = totalDamageDealt / gameDuration,
+         totalHeal = totalHeal / gameDuration,
+         wardsPlaced = wardsPlaced / gameDuration,
+         totalTimeCCDealt = totalTimeCCDealt / gameDuration,
+         totalDamageTaken = totalDamageTaken / gameDuration,
+         longestTimeSpentLiving = longestTimeSpentLiving / gameDuration,
+         goldEarned = goldEarned / gameDuration,
+         win_state = ifelse(win, "Won", "Lost"))
 ```
 
 # Interactive Visualization
 
-To get a better sense of the data here are some interactive visuals of the dataset
+To get a better sense of the data here are some interactive visuals of the dataset, (bonus graphs)
 
-## Champion Info
+## Match and Player Stats Info
 
-One of the most notable and recognizable things about League of Legends is there character, also known as Champions. Here we have some graphs that give us some insight on some basic stats on each Champion.
+Here are some graphs and info on matches and different player stats
 
-```{r plot1, fig.height=10, include = T}
-
-player_df %>%
-  group_by(championName) %>%
-  summarise(play_rate = n()/nrow(match_df) * 100) %>%
-  plot_ly(x = ~championName,
-          y = ~play_rate,
-          type = "bar",
-          color = ~championName,
-          hover_info = "text",
-          text = ~paste(paste0("Champion Name: ", championName),
-                        paste0("Play Rate: ", paste0(round(play_rate,2), "%")),
-                        sep = "<br>"
-                        )) %>%
-  layout(title = "Play Rate of Each Champion (%)",
-         yaxis = list(title = "Play Rate (%)"),
-         xaxis = list(title = "Champion"))
+```{r plot6, fig.height=10, include = T}
+match_df %>%
+  plot_ly(
+    x = ~gameDuration,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Game Lengths",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Game Length in Minutes"))
 ```
 
-```{r plot2, fig.height=10, include = T}
+```{r plot7, fig.height=10, include = T}
+avged_stats %>%
+  filter(longestTimeSpentLiving > 0) %>%
+  mutate(longestTimeSpentLiving = longestTimeSpentLiving / 60 / 60) %>%
+  plot_ly(
+    x = ~longestTimeSpentLiving,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Longest Time Spent Living (%)",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Longest Time Player Was alive as % of game length"))
+```
 
-player_df %>%
-  group_by(championName) %>%
-  summarise(win_rate = sum(win)/n() * 100, n = n()) %>%
-  plot_ly(x = ~championName,
-          y = ~win_rate,
-          type = "bar",
-          color = ~championName,
-          hover_info = "text",
-          text = ~paste(paste0("Champion Name: ", championName),
-                        paste0("Win Rate: ", paste0(round(win_rate,2), "%")),
-                        paste0("Out of ", paste0(n, " games")),
-                        sep = "<br>"
-                        )) %>%
-  layout(title = "Win Rate of Each Champion (%)",
-         yaxis = list(title = "Win Rate (%)"),
-         xaxis = list(title = "Champion"))
+```{r plot8, fig.height=10, include = T}
+avged_stats %>%
+  plot_ly(
+    x = ~largestKillingSpree,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Largest Killing Spree",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Largest Killing Spree"))
 ```
 
 ## Role Info
@@ -171,56 +179,3 @@ avged_stats %>%
          xaxis = list(title = "Role"))
 ```
 
-## Match and Player Stats Info
-
-Here are some graphs and info on matches and different player stats
-
-```{r plot6, fig.height=10, include = T}
-match_df %>%
-  plot_ly(
-    x = ~gameDuration,
-    type = "histogram"
-  ) %>%
-  layout(title = "Histogram of Game Lengths",
-         yaxis = list(title = "Frequency"),
-         xaxis = list(title = "Game Length in Minutes"))
-```
-
-```{r plot7, fig.height=10, include = T}
-diff_stats <- match_df %>%
-  left_join(avged_stats, by = "match_id") %>%
-  group_by(match_id, teamId, win) %>%
-  summarise(
-    damageDealt = sum(totalDamageDealt),
-    goldEarned = sum(goldEarned)
-    ) %>%
-  pivot_wider(names_from = teamId, values_from = c("damageDealt", "goldEarned", "win")) %>%
-  mutate(
-    damageDealtDiff = damageDealt_100 - damageDealt_200,
-    goldEarnedDiff = goldEarned_100 - goldEarned_200
-    )
-
-diff_stats %>%
-  plot_ly(
-    x = ~damageDealtDiff,
-    color = ~win_100,
-    type = "histogram"
-  ) %>%
-  layout(title = "Histogram of Differences in Damage Dealt Per Minute by Win/Loss",
-         yaxis = list(title = "Frequency"),
-         xaxis = list(title = "Damage Dealt Difference Per Minute"),
-         barmode = "stack")
-```
-
-```{r plot8, fig.height=10, include = T}
-diff_stats %>%
-  plot_ly(
-    x = ~goldEarnedDiff,
-    color = ~win_100,
-    type = "histogram"
-  ) %>%
-  layout(title = "Histogram of Differences in Gold Earned Per Minute by Win/Loss",
-         yaxis = list(title = "Frequency"),
-         xaxis = list(title = "Gold Earned Difference Per Minute"),
-         barmode = "stack")
-```
