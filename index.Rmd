@@ -1,5 +1,5 @@
 ---
-title: "A League of Data (JSC370 Final Project)"
+title: "Final Report"
 author: "Mark JP Sanchez"
 output: 
     html_document:
@@ -7,13 +7,41 @@ output:
         toc_float: TRUE
 ---
 
-## What is League of Legends
+```{r setup, message=FALSE, echo=FALSE, warning=FALSE}
+
+library(data.table)
+library(tidyverse)
+library(dplyr)
+library(plotly)
+library(DT)
+library(knitr)
+
+# Initialize code chunk options
+opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  eval=TRUE,
+  echo = FALSE,
+  cache = FALSE,
+  include = FALSE,
+  fig.width = 7, 
+  fig.align = 'center',
+  fig.asp = 0.618,
+  out.width = "700px",
+  class.source = "code-r")
+```
+
+# Introduction
 
 League of Legends is a hugely popular video game that rakes in billions of dollars a year and is easily one of the most popular and influential games in the world. The success of the game has even spawned a successful e-sports scene, a k-pop band, and even a critically acclaimed Netflix show. All of this, spawning from an online 5 vs. 5 competitive MOBA game. A MOBA game effectively being a game such that two teams face off head-to-head in a match. Each player chooses a character, in League of Legends they are called Champions, to play as and each character has a unique set of skills. During the game, each player attempts to level up their character, accrue money to spend on items, destroy enemy towers and escort their minions to the enemy base. The objective of the game is to destroy your opponent's base but to do so, you need to power up and work with your team to both infiltrate their base and protect yours over the course of 20 minutes to an hour. 
 
 Evidently. one thing that makes the game so much fun is all the moving parts and decisions a player can make to influence a match. Some decisions include what champion to choose, what items to buy, and what objective to focus on. Unfortunately, all of these factors and decisions can overwhelm new and existing players, and with the main objective obviously being to win the game, it would be nice to now what kind of decisions actually influence those wins.
 
-## The Dataset
+A link to the full report can be found [here](report/jsc370_report.pdf)
+
+# Methods
+
+## Data Wrangling and Cleaning Methods
 
 The data set was taken from the RIOT api and contains data from League of Legends matches. The data collected contains info such as how long the matches were, what champions each player played, how much damage each player did, and what side objectives the players took. The data was given in JSON format which I had to turn into nice R data frames.
 
@@ -22,3 +50,137 @@ One issue that arose from gathering match data from the RIOT api was that there 
 Calling the match data api from RIOT gives you a lot of variables to work with. Especially since each player in the match have tens of different variable attached to them. With 10 players per game, that is a lot of data to work with. Since we are looking at the decisions each player makes on their own, we will take the data and split it up into 2 different datasets. The first dataset will contain match metadata such as when the match was created and how long the match was. The second dataset contains data on each player during a match. So each observation in that player dataset will be corresponding to data from a player in a match. This data will include things like how much damage they did, how many kills they got and how much gold they made.
 
 With the methodologies I listed above I ran my code and let the program run for a few hours. This long waiting time was due to the rate limit imposed by the RIOT api of a max of 100 requests per 2 minutes. In the end we collected a dataset of 9400 matches.
+
+```{r load-data}
+# Loading in our data
+player_df <- read.csv("data/lol_player_info.csv")
+match_df <- read.csv("data/lol_match_info.csv")
+
+# Getting rid of games that are too old
+match_df <- match_df %>%
+  filter(gameCreation > 1641621600000)
+
+match_df$gameDate <- as.Date(as.POSIXct(match_df$gameCreation / 1000, origin="1970-01-01"))
+match_df$gameDuration <- match_df$gameDuration / 60
+
+player_df <- player_df %>%
+  mutate(
+    teamPosition = ifelse(teamPosition == "", NA, teamPosition)) %>%
+  drop_na(teamPosition)
+
+player_df <- match_df %>%
+  select(match_id) %>%
+  merge(player_df, by ="match_id", all.x = T)
+
+avged_stats <- player_df %>%
+  merge(match_df, by = "match_id") %>%
+  mutate(kills = kills/ gameDuration,
+         totalDamageDealt = totalDamageDealt / gameDuration,
+         totalHeal = totalHeal / gameDuration,
+         wardsPlaced = wardsPlaced / gameDuration,
+         totalTimeCCDealt = totalTimeCCDealt / gameDuration,
+         totalDamageTaken = totalDamageTaken / gameDuration,
+         goldEarned = goldEarned / gameDuration,
+         win = ifelse(win, "Won", "Lossed"))
+```
+
+# Interactive Visualization
+
+To get a better sense of the data here are some interactive visuals of the dataset
+
+## Champion Info
+
+One of the most notable and recognizable things about League of Legends is there character, also known as Champions. Here we have some graphs that give us some insight on some basic stats on each Champion.
+
+```{r plot1, fig.height=10, include = T}
+
+player_df %>%
+  group_by(championName) %>%
+  summarise(play_rate = n()/nrow(match_df) * 100) %>%
+  plot_ly(x = ~championName,
+          y = ~play_rate,
+          type = "bar",
+          color = ~championName,
+          hover_info = "text",
+          text = ~paste(paste0("Champion Name: ", championName),
+                        paste0("Play Rate: ", paste0(round(play_rate,2), "%")),
+                        sep = "<br>"
+                        )) %>%
+  layout(title = "Play Rate of Each Champion (%)",
+         yaxis = list(title = "Play Rate (%)"),
+         xaxis = list(title = "Champion"))
+```
+
+```{r plot2, fig.height=10, include = T}
+
+player_df %>%
+  group_by(championName) %>%
+  summarise(win_rate = sum(win)/n() * 100, n = n()) %>%
+  plot_ly(x = ~championName,
+          y = ~win_rate,
+          type = "bar",
+          color = ~championName,
+          hover_info = "text",
+          text = ~paste(paste0("Champion Name: ", championName),
+                        paste0("Win Rate: ", paste0(round(win_rate,2), "%")),
+                        paste0("Out of ", paste0(n, " games")),
+                        sep = "<br>"
+                        )) %>%
+  layout(title = "Win Rate of Each Champion (%)",
+         yaxis = list(title = "Win Rate (%)"),
+         xaxis = list(title = "Champion"))
+```
+
+## Match and Player Stats Info
+
+Here are some graphs and info on matches and different player stats
+
+```{r plot6, fig.height=10, include = T}
+match_df %>%
+  plot_ly(
+    x = ~gameDuration,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Game Lengths",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Game Length in Minutes"))
+```
+
+```{r plot7, fig.height=10, include = T}
+diff_stats <- match_df %>%
+  left_join(avged_stats, by = "match_id") %>%
+  group_by(match_id, teamId, win) %>%
+  summarise(
+    damageDealt = sum(totalDamageDealt),
+    goldEarned = sum(goldEarned)
+    ) %>%
+  pivot_wider(names_from = teamId, values_from = c("damageDealt", "goldEarned", "win")) %>%
+  mutate(
+    damageDealtDiff = damageDealt_100 - damageDealt_200,
+    goldEarnedDiff = goldEarned_100 - goldEarned_200
+    )
+
+diff_stats %>%
+  plot_ly(
+    x = ~damageDealtDiff,
+    color = ~win_100,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Differences in Damage Dealt Per Minute by Win/Loss",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Damage Dealt Difference Per Minute"),
+         barmode = "stack")
+```
+
+```{r plot8, fig.height=10, include = T}
+diff_stats %>%
+  plot_ly(
+    x = ~goldEarnedDiff,
+    color = ~win_100,
+    type = "histogram"
+  ) %>%
+  layout(title = "Histogram of Differences in Gold Earned Per Minute by Win/Loss",
+         yaxis = list(title = "Frequency"),
+         xaxis = list(title = "Gold Earned Difference Per Minute"),
+         barmode = "stack")
+```
