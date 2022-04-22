@@ -183,7 +183,7 @@ Within our report we used some matrix factorization to learn some latent factors
 
 Our model gave us an r squared value of 0.88 so our model explains 88% of the variance in our test set. Below is an example of the champions by their latent factors.
 
-```{r}
+```{r, fig.height=10, include = T}
 champion_matrix_df <- read.csv("data/champion_matrix.csv")
 
 champion_matrix_df %>%
